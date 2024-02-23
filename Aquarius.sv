@@ -252,6 +252,20 @@ user_io #(.STRLEN($size(CONF_STR)>>3), .SD_IMAGES(2), .FEATURES(32'h0 | (BIG_OSD
 	.joystick_1       ( joystick_1      ),
 	.status         	(status         	),
 );
+
+data_io data_io(
+	.clk_sys       ( clk_sys      ),
+	.SPI_SCK       ( SPI_SCK      ),
+	.SPI_SS2       ( SPI_SS2      ),
+	.SPI_DI        ( SPI_DI       ),
+	.clkref_n      ( 1'b0         ),
+	.ioctl_download( ioctl_download),
+	.ioctl_index   ( ioctl_index  ),
+	.ioctl_wr      ( ioctl_wr     ),
+	.ioctl_addr    ( ioctl_addr   ),
+	.ioctl_dout    ( ioctl_dout   )
+);
+
 ///////////////////////////////////////////////
 
 wire reset = status[0] | buttons[1] | !pll_locked;
