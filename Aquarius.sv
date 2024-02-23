@@ -21,47 +21,143 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //============================================================================
 
-module guest_top
-(       
-        output        LED,                                              
-        output        VGA_HS,
-        output        VGA_VS,
-        output        AUDIO_L,
-        output        AUDIO_R, 
-//		  output [15:0]  DAC_L, 
-//		  output [15:0]  DAC_R, 
-        input         AUDIO_IN,
-        input         UART_RX,
-        output        UART_TX,
-        input         SPI_SCK,
-        output        SPI_DO,
-        input         SPI_DI,
-        input         SPI_SS2,
-        input         SPI_SS3,
-        input         CONF_DATA0,
-        input         CLOCK_27,
-        output  [5:0] VGA_R,
-        output  [5:0] VGA_G,
-        output  [5:0] VGA_B,
+module guest_top(
+	input         CLOCK_27,
+`ifdef USE_CLOCK_50
+	input         CLOCK_50,
+`endif
 
-		  output [12:0] SDRAM_A,
-		  inout  [15:0] SDRAM_DQ,
-		  output        SDRAM_DQML,
-        output        SDRAM_DQMH,
-        output        SDRAM_nWE,
-        output        SDRAM_nCAS,
-        output        SDRAM_nRAS,
-        output        SDRAM_nCS,
-        output  [1:0] SDRAM_BA,
-        output        SDRAM_CLK,
-        output        SDRAM_CKE
+// `ifdef XILINX
+// 	output 		  CLOCK_50_buff,
+// `endif
+
+	output        LED,
+	output [VGA_BITS-1:0] VGA_R,
+	output [VGA_BITS-1:0] VGA_G,
+	output [VGA_BITS-1:0] VGA_B,
+	output        VGA_HS,
+	output        VGA_VS,
+
+`ifdef USE_HDMI
+	output        HDMI_RST,
+	output  [7:0] HDMI_R,
+	output  [7:0] HDMI_G,
+	output  [7:0] HDMI_B,
+	output        HDMI_HS,
+	output        HDMI_VS,
+	output        HDMI_PCLK,
+	output        HDMI_DE,
+	inout         HDMI_SDA,
+	inout         HDMI_SCL,
+	input         HDMI_INT,
+`endif
+
+	input         SPI_SCK,
+	inout         SPI_DO,
+	input         SPI_DI,
+	input         SPI_SS2,    // data_io
+	input         SPI_SS3,    // OSD
+	input         CONF_DATA0, // SPI_SS for user_io
+
+`ifdef USE_QSPI
+	input         QSCK,
+	input         QCSn,
+	inout   [3:0] QDAT,
+`endif
+`ifndef NO_DIRECT_UPLOAD
+	input         SPI_SS4,
+`endif
+
+	output [12:0] SDRAM_A,
+	inout  [15:0] SDRAM_DQ,
+	output        SDRAM_DQML,
+	output        SDRAM_DQMH,
+	output        SDRAM_nWE,
+	output        SDRAM_nCAS,
+	output        SDRAM_nRAS,
+	output        SDRAM_nCS,
+	output  [1:0] SDRAM_BA,
+	output        SDRAM_CLK,
+	output        SDRAM_CKE,
+
+`ifdef DUAL_SDRAM
+	output [12:0] SDRAM2_A,
+	inout  [15:0] SDRAM2_DQ,
+	output        SDRAM2_DQML,
+	output        SDRAM2_DQMH,
+	output        SDRAM2_nWE,
+	output        SDRAM2_nCAS,
+	output        SDRAM2_nRAS,
+	output        SDRAM2_nCS,
+	output  [1:0] SDRAM2_BA,
+	output        SDRAM2_CLK,
+	output        SDRAM2_CKE,
+`endif
+
+	output        AUDIO_L,
+	output        AUDIO_R,
+`ifdef I2S_AUDIO
+	output        I2S_BCK,
+	output        I2S_LRCK,
+	output        I2S_DATA,
+`endif
+`ifdef SPDIF_AUDIO
+	output        SPDIF,
+`endif
+`ifdef USE_AUDIO_IN
+	input         AUDIO_IN,
+`endif
+	input         UART_RX,
+	output        UART_TX
+
 );
 
+`ifdef NO_DIRECT_UPLOAD
+localparam bit DIRECT_UPLOAD = 0;
+wire SPI_SS4 = 1;
+`else
+localparam bit DIRECT_UPLOAD = 1;
+`endif
+
+`ifdef USE_QSPI
+localparam bit QSPI = 1;
+assign QDAT = 4'hZ;
+`else
+localparam bit QSPI = 0;
+`endif
+
+`ifdef VGA_8BIT
+localparam VGA_BITS = 8;
+`else
+localparam VGA_BITS = 6;
+`endif
+
+`ifdef USE_HDMI
+localparam bit HDMI = 1;
+assign HDMI_RST = 1'b1;
+`else
+localparam bit HDMI = 0;
+`endif
+
+`ifdef BIG_OSD
+localparam bit BIG_OSD = 1;
+`define SEP "-;",
+`else
+localparam bit BIG_OSD = 0;
+`define SEP
+`endif
+
+`ifdef USE_AUDIO_IN
+wire TAPE_SOUND = AUDIO_IN;
+`else
+wire TAPE_SOUND = UART_RX;
+`endif
 
 
 assign LED    = ioctl_download | tape_req;
 
 `include "build_id.v"
+
 localparam CONF_STR =
 {
 	"AQUARIUS;;",
@@ -131,32 +227,30 @@ wire  [7:0] ioctl_dout;
 wire        ioctl_download;
 wire  [7:0] ioctl_index;
 
-mist_io #(.STRLEN($size(CONF_STR)>>3)) mist_io
-(
-	.SPI_SCK   (SPI_SCK),
-   .CONF_DATA0(CONF_DATA0),
-   .SPI_SS2   (SPI_SS2),
-   .SPI_DO    (SPI_DO),
-   .SPI_DI    (SPI_DI),
+///////////////////////////////////////////////
 
-	.clk_sys(clk_sys),
-	.conf_str(CONF_STR),
 
-	.ps2_key(ps2_key),
-	.joystick_0(joystick_0),
-	.joystick_1(joystick_1),
-	.buttons(buttons),
-	.scandoubler_disable(forced_scandoubler),
-	.ypbpr(ypbpr),
-	.status(status),
-	.ioctl_ce(1),
-	.ioctl_wr(ioctl_wr),
-	.ioctl_addr(ioctl_addr),
-	.ioctl_dout(ioctl_dout),
-	.ioctl_download(ioctl_download),
-	.ioctl_index(ioctl_index)
+
+user_io #(.STRLEN($size(CONF_STR)>>3), .SD_IMAGES(2), .FEATURES(32'h0 | (BIG_OSD << 13) | (HDMI << 14))) user_io
+(	
+	.clk_sys        	(clk_sys         	),
+	.clk_sd           (clk_sys           ),
+	.conf_str       	(CONF_STR       	),
+	.SPI_CLK        	(SPI_SCK        	),
+	.SPI_SS_IO      	(CONF_DATA0     	),
+	.SPI_MISO       	(SPI_DO        	),
+	.SPI_MOSI       	(SPI_DI         	),
+	.buttons        	(buttons        	),
+	.scandoubler_disable (forced_scandoubler),
+	.ypbpr          	(ypbpr          	),
+	.key_strobe     	(key_strobe     	),
+	.key_pressed    	(key_pressed    	),
+	.key_extended   	(key_extended   	),
+	.key_code       	(key_code       	),
+	.joystick_0       ( joystick_0      ),
+	.joystick_1       ( joystick_1      ),
+	.status         	(status         	),
 );
-
 ///////////////////////////////////////////////
 
 wire reset = status[0] | buttons[1] | !pll_locked;
@@ -303,24 +397,47 @@ wire [7:0] R,G,B;
 wire HBlank,VBlank,HSync,VSync;
 wire ce_pix;
 
-video_mixer #(.LINE_LENGTH(320)) video_mixer
-(
-	.*,
-   .ce_pix_actual(ce_pix),
-	.scanlines(forced_scandoubler ? 2'b00 : {scale==3, scale==2}),
+mist_video #(.COLOR_DEPTH(6), .SD_HCNT_WIDTH(11), .OUT_COLOR_DEPTH(VGA_BITS), .BIG_OSD(BIG_OSD)) mist_video (	
+	.clk_sys      (clk_sys     ),
+	.SPI_SCK      (SPI_SCK    ),
+	.SPI_SS3      (SPI_SS3    ),
+	.SPI_DI       (SPI_DI     ),
+	.R            (R[7:2]),
+	.G            (G[7:2]),
+	.B            (B[7:2]),
+	.HSync        (HSync      ),
+	.VSync        (VSync      ),
+	.HBlank       (HBlank     ),
+	.VBlank       (VBlank     ),
+	.VGA_R        (VGA_R      ),
+	.VGA_G        (VGA_G      ),
+	.VGA_B        (VGA_B      ),
+	.VGA_VS       (VGA_VS     ),
+	.VGA_HS       (VGA_HS     ),
+	.ce_divider   (1'b0       ),
 	.scandoubler_disable(forced_scandoubler),
-   .mono(0),
-   .ypbpr_full(1),
-   .line_start(HBlank),
-	.HSync (HSync),
-	.VSync (VSync),
+	.scanlines    (forced_scandoubler ? 2'b00 : {scale==3, scale==2}),
+	.ypbpr        (ypbpr      )
+	);
 
-	.R (R[7:2]),
-	.G (G[7:2]),
-	.B (B[7:2]),
-	
-	.hq2x(scale == 1)
-);
+//video_mixer #(.LINE_LENGTH(320)) video_mixer
+//(
+//	.*,
+//   .ce_pix_actual(ce_pix),
+//	.scanlines(forced_scandoubler ? 2'b00 : {scale==3, scale==2}),
+//	.scandoubler_disable(forced_scandoubler),
+//   .mono(0),
+//   .ypbpr_full(1),
+//   .line_start(HBlank),
+//	.HSync (HSync),
+//	.VSync (VSync),
+//
+//	.R (R[7:2]),
+//	.G (G[7:2]),
+//	.B (B[7:2]),
+//	
+//	.hq2x(scale == 1)
+//);
 
 ////////////////////////////////////////////////////////
 
@@ -353,8 +470,29 @@ ym2149 ym2149
 assign {audio_a[9:8],audio_b[9:8],audio_c[9:8]} = 0;
 wire [9:0] audio_data = audio_a+audio_b+audio_c+{2'b00,cass_out,cass_in,6'd0};
 
-//assign DAC_L = {audio_data, 6'd0};
-//assign DAC_R = {audio_data, 6'd0};
+
+wire signed [15:0] DAC_L,DAC_R;
+
+assign DAC_L = {audio_data, 6'd0};
+assign DAC_R = {audio_data, 6'd0};
+
+`ifdef I2S_AUDIO
+
+wire [31:0] clk_rate =  32'd57_272_727;
+i2s i2s (
+	.reset(1'b0),
+	.clk(clk_sys),
+	.clk_rate(clk_rate),
+
+	.sclk(I2S_BCK),
+	.lrclk(I2S_LRCK),
+	.sdata(I2S_DATA),
+
+	.left_chan (DAC_L),
+	.right_chan(DAC_R)
+);
+`endif
+
 
 dac #(10) dac_l (
    .clk_i        (clk_sys),
@@ -376,6 +514,11 @@ pad pad_1(.joy_in(joystick_1[9:0]), .pad_out(pad1 | kbd_pad1));
 wire [7:0] key_value; // Pla1 <-> PS2_to_matrix
 
 wire [9:0] kbd_pad0,kbd_pad1;
+wire        key_pressed;
+wire [7:0]  key_code;
+wire        key_strobe;
+wire        key_extended;
+
 PS2_to_matrix PS2_to_matrix
 (
 	.clk   ( clk_sys   ),
@@ -388,10 +531,10 @@ PS2_to_matrix PS2_to_matrix
 	.pad0(kbd_pad0),
 	.pad1(kbd_pad1),
 	
-	.psdatai(ps2_key[7:0]),
-	.psdataex(ps2_key[8]),
-	.pspress(ps2_key[9]),
-	.psstate(ps2_key[10])
+	.psdatai(key_code),
+	.psdataex(key_extended),
+	.pspress(key_pressed),
+	.psstate(key_strobe)
 );
 
 ////////////////////////////////////////////////////////

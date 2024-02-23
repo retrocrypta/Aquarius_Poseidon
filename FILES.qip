@@ -1,4 +1,6 @@
 set_global_assignment -name QIP_FILE ../rtl/T80/T80.qip
+set_global_assignment -name QIP_FILE ../mist-modules/mist.qip
+set_global_assignment -name VHDL_FILE ../mist-modules/dac.vhd
 set_global_assignment -name VHDL_FILE ../rtl/main_rom.vhd
 set_global_assignment -name VHDL_FILE ../rtl/char_rom.vhd
 set_global_assignment -name VHDL_FILE ../rtl/gen_dpram.vhd
