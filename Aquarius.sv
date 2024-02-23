@@ -229,7 +229,7 @@ wire  [7:0] ioctl_index;
 
 ///////////////////////////////////////////////
 
-
+wire no_csync;
 
 user_io #(.STRLEN($size(CONF_STR)>>3), .SD_IMAGES(2), .FEATURES(32'h0 | (BIG_OSD << 13) | (HDMI << 14))) user_io
 (	
@@ -243,6 +243,7 @@ user_io #(.STRLEN($size(CONF_STR)>>3), .SD_IMAGES(2), .FEATURES(32'h0 | (BIG_OSD
 	.buttons        	(buttons        	),
 	.scandoubler_disable (forced_scandoubler),
 	.ypbpr          	(ypbpr          	),
+	.no_csync         (no_csync         ),
 	.key_strobe     	(key_strobe     	),
 	.key_pressed    	(key_pressed    	),
 	.key_extended   	(key_extended   	),
@@ -397,7 +398,7 @@ wire [7:0] R,G,B;
 wire HBlank,VBlank,HSync,VSync;
 wire ce_pix;
 
-mist_video #(.COLOR_DEPTH(6), .SD_HCNT_WIDTH(11), .OUT_COLOR_DEPTH(VGA_BITS), .BIG_OSD(BIG_OSD)) mist_video (	
+mist_video #(.COLOR_DEPTH(6), .SD_HCNT_WIDTH(11), .USE_BLANKS(1),.OUT_COLOR_DEPTH(VGA_BITS), .BIG_OSD(BIG_OSD)) mist_video (	
 	.clk_sys      (clk_sys     ),
 	.SPI_SCK      (SPI_SCK    ),
 	.SPI_SS3      (SPI_SS3    ),
@@ -414,10 +415,11 @@ mist_video #(.COLOR_DEPTH(6), .SD_HCNT_WIDTH(11), .OUT_COLOR_DEPTH(VGA_BITS), .B
 	.VGA_B        (VGA_B      ),
 	.VGA_VS       (VGA_VS     ),
 	.VGA_HS       (VGA_HS     ),
-	.ce_divider   (1'b0       ),
+	.ce_divider   (1'b1       ),
+	.no_csync     ( no_csync  ),
 	.scandoubler_disable(forced_scandoubler),
 	.scanlines    (forced_scandoubler ? 2'b00 : {scale==3, scale==2}),
-	.ypbpr        (ypbpr      )
+	.ypbpr        ( ypbpr     )
 	);
 
 //video_mixer #(.LINE_LENGTH(320)) video_mixer
